@@ -1,0 +1,145 @@
+//confusion matrix
+# ======================================
+# 🔹 Import libraries
+# ======================================
+import torch
+import torch.nn as nn
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+from timm import create_model
+from sklearn.metrics import classification_report, confusion_matrix
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+# ======================================
+# 🔹 Configuration
+# ======================================
+data_dir = data_dir = "/content/brain_tumor_dataset/val"   # Path to your test folder
+model_path = "/content/brain_tumor_model_90plus.pth"
+num_classes = 4
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using:", device)
+
+# ======================================
+# 🔹 Transform (same as validation)
+# ======================================
+test_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225])
+])
+
+# ======================================
+# 🔹 Load Test Dataset
+# ======================================
+test_dataset = datasets.ImageFolder(data_dir, transform=test_transform)
+test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+class_names = test_dataset.classes
+print("Classes:", class_names)
+
+# ======================================
+# 🔹 Load Trained Model
+# ======================================
+model = create_model('efficientnet_b2', pretrained=False, num_classes=num_classes)
+model.load_state_dict(torch.load(model_path, map_location=device))
+model = model.to(device)
+model.eval()
+
+# ======================================
+# 🔹 Evaluate on Test Set
+# ======================================
+all_preds = []
+all_labels = []
+
+with torch.no_grad():
+    for inputs, labels in test_loader:
+        inputs, labels = inputs.to(device), labels.to(device)
+        outputs = model(inputs)
+        _, preds = torch.max(outputs, 1)
+        all_preds.extend(preds.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+# ======================================
+# 🔹 Metrics
+# ======================================
+print("\n📊 Classification Report:")
+print(classification_report(all_labels, all_preds, target_names=class_names, digits=4))
+
+cm = confusion_matrix(all_labels, all_preds)
+acc = np.trace(cm) / np.sum(cm)
+print(f"✅ Overall Test Accuracy: {acc*100:.2f}%")
+
+# ======================================
+# 🔹 Confusion Matrix Plot
+# ======================================
+plt.figure(figsize=(6,5))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=class_names, yticklabels=class_names)
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix — Brain Tumor Classification")
+plt.show()
+//testing on single object
+# ======================================
+# 🔹 Import libraries
+# ======================================
+import torch
+from torchvision import transforms
+from PIL import Image
+from timm import create_model
+import matplotlib.pyplot as plt
+
+# ======================================
+# 🔹 Configuration
+# ======================================
+model_path = "/content/brain_tumor_model_90plus.pth"
+image_path = "/content/brain_tumor_dataset/val/glioma_tumor/image(100).jpg"   # 🔸 Replace with your test image path
+num_classes = 4
+class_names = ['glioma_tumor', 'meningioma_tumor', 'no_tumor', 'pituitary_tumor']
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using:", device)
+
+# ======================================
+# 🔹 Image Transform (same as validation)
+# ======================================
+test_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225])
+])
+
+# ======================================
+# 🔹 Load Model
+# ======================================
+model = create_model('efficientnet_b2', pretrained=False, num_classes=num_classes)
+model.load_state_dict(torch.load(model_path, map_location=device))
+model = model.to(device)
+model.eval()
+
+# ======================================
+# 🔹 Predict Single Image
+# ======================================
+img = Image.open(image_path).convert('RGB')
+input_tensor = test_transform(img).unsqueeze(0).to(device)
+
+with torch.no_grad():
+    outputs = model(input_tensor)
+    _, preds = torch.max(outputs, 1)
+    predicted_class = class_names[preds.item()]
+    confidence = torch.softmax(outputs, dim=1)[0][preds.item()].item() * 100
+
+# ======================================
+# 🔹 Display Result
+# ======================================
+plt.imshow(img)
+plt.axis('off')
+plt.title(f"Predicted: {predicted_class} ({confidence:.2f}%)")
+plt.show()
+
+print(f"🧠 Predicted Tumor Type: {predicted_class}")
+print(f"Confidence: {confidence:.2f}%")
